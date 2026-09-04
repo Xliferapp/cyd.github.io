@@ -4,68 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CYD — povezava</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --phos: #4dff4d;
-      --phos-dim: #1a6a1a;
-      --amber: #ffbe28;
-      --bg: #010103;
-    }
+    :root { --phos:#4dff4d; --phos-dim:#1a6a1a; --amber:#ffbe28; --bg:#010103; }
     * { box-sizing: border-box; }
-    html, body {
-      margin: 0; height: 100%;
-      background: var(--bg);
-      color: var(--phos);
-      font-family: 'VT323', ui-monospace, monospace;
-    }
-    body {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100%;
-      background-image:
-        linear-gradient(rgba(1,1,3,0.15) 1px, transparent 1px);
-      background-size: 100% 3px;
-    }
-    .box {
-      width: min(640px, 92vw);
-      border: 2px solid var(--phos-dim);
-      box-shadow: 0 0 24px rgba(77,255,77,0.18);
-      padding: 28px 32px 24px;
-    }
-    h1 {
-      margin: 0 0 6px;
-      font-size: 42px;
-      font-weight: 400;
-      color: var(--amber);
-      text-shadow: 0 0 12px rgba(255,190,40,0.45);
-      letter-spacing: 2px;
-    }
-    .sub { color: #6a9a6a; font-size: 22px; margin-bottom: 22px; }
-    #status { font-size: 24px; line-height: 1.35; min-height: 2.6em; }
-    .dim { color: #557755; }
-    .ok { color: var(--phos); text-shadow: 0 0 8px rgba(77,255,77,0.4); }
-    .err { color: #ff6b6b; }
-    .url {
-      word-break: break-all;
-      color: #88ccff;
-      font-size: 22px;
-      margin: 10px 0 18px;
-    }
-    button {
-      font-family: inherit;
-      font-size: 22px;
-      background: transparent;
-      color: var(--amber);
-      border: 1px solid var(--amber);
-      padding: 8px 18px;
-      cursor: pointer;
-    }
-    button:hover { background: rgba(255,190,40,0.12); }
-    button:disabled { opacity: 0.35; cursor: default; }
-    .hint { margin-top: 18px; font-size: 18px; color: #4a6a4a; }
+    html, body { margin:0; height:100%; background:var(--bg); color:var(--phos); font-family:'VT323',monospace; }
+    body { display:flex; align-items:center; justify-content:center; min-height:100%; }
+    .box { width:min(640px,92vw); border:2px solid var(--phos-dim); box-shadow:0 0 24px rgba(77,255,77,.18); padding:28px 32px 24px; }
+    h1 { margin:0 0 6px; font-size:42px; font-weight:400; color:var(--amber); text-shadow:0 0 12px rgba(255,190,40,.45); letter-spacing:2px; }
+    .sub { color:#6a9a6a; font-size:22px; margin-bottom:22px; }
+    #status { font-size:24px; line-height:1.35; min-height:2.4em; }
+    .dim { color:#557755; } .ok { color:var(--phos); } .err { color:#ff6b6b; }
+    .url { word-break:break-all; color:#88ccff; font-size:22px; margin:10px 0 18px; }
+    button { font-family:inherit; font-size:22px; background:transparent; color:var(--amber); border:1px solid var(--amber); padding:8px 18px; cursor:pointer; }
+    button:disabled { opacity:.35; cursor:default; }
+    .hint { margin-top:18px; font-size:18px; color:#4a6a4a; }
   </style>
 </head>
 <body>
@@ -75,67 +28,70 @@
     <div id="status" class="dim">Iščem trenutni naslov …</div>
     <div id="url" class="url"></div>
     <button id="go" type="button" disabled>Odpri CYD</button>
-    <div class="hint">
-      Ta stran je statična (GitHub Pages). Dejanski server teče pri tebi
-      in URL pošlje v Firebase, ko zaženeš tunel.
-    </div>
+    <div class="hint">Če se ne odpre samo, klikni gumb. Tunel mora teči na PC.</div>
   </div>
   <script src="firebase-public.js"></script>
   <script>
     (function () {
-      const status = document.getElementById('status');
-      const urlEl = document.getElementById('url');
-      const go = document.getElementById('go');
-      const db = String(window.CYD_FIREBASE_DB || '').replace(/\/$/, '');
-      const path = String(window.CYD_FIREBASE_PATH || 'cyd/live').replace(/^\/+|\/+$/g, '');
+      var status = document.getElementById('status');
+      var urlEl = document.getElementById('url');
+      var go = document.getElementById('go');
+      var db = String(window.CYD_FIREBASE_DB || 'https://game-97893-default-rtdb.firebaseio.com').replace(/\/$/, '');
+      var path = String(window.CYD_FIREBASE_PATH || 'cyd/live').replace(/^\/+|\/+$/g, '');
+      var endpoint = db + '/' + path + '.json';
+      var target = '';
+      var opened = false;
 
       function setStatus(t, cls) {
         status.className = cls || '';
         status.textContent = t;
       }
 
-      if (!db || db.indexOf('TVOJ-PROJEKT') !== -1) {
-        setStatus('Najprej v firebase-public.js vpiši svoj Firebase URL.', 'err');
-        return;
+      function pickUrl(data) {
+        if (!data) return '';
+        if (typeof data === 'string' && data.indexOf('http') === 0) return data;
+        if (data.error) return '';
+        var u = data.url || data.link || data.alt || '';
+        return typeof u === 'string' ? u : '';
       }
-
-      const endpoint = db + '/' + path + '.json';
-      let target = '';
-      let opened = false;
 
       function openNow() {
         if (!target || opened) return;
         opened = true;
-        window.location.replace(target);
+        setStatus('Odpiram …', 'ok');
+        window.location.href = target;
       }
 
-      go.addEventListener('click', function () {
-        if (target) window.location.href = target;
-      });
+      go.onclick = function () { if (target) window.location.href = target; };
 
-      fetch(endpoint, { cache: 'no-store' })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          const url = data && (data.url || data.link || data);
-          if (!url || typeof url !== 'string' || url.indexOf('http') !== 0) {
-            setStatus('Tunel trenutno ni objavljen. Na PC zaženi server + tunnel.bat.', 'err');
-            return;
-          }
-          target = url.replace(/\/$/, '');
-          urlEl.textContent = target;
-          go.disabled = false;
-          let n = 2;
-          function tick() {
-            if (n <= 0) { openNow(); return; }
-            setStatus('Najden živi server. Odpiram čez ' + n + ' …', 'ok');
-            n -= 1;
-            setTimeout(tick, 700);
-          }
-          tick();
-        })
-        .catch(function () {
-          setStatus('Firebase ni dosegljiv. Preveri pravila baze (.read = true) in URL.', 'err');
-        });
+      function tick() {
+        fetch(endpoint + '?ts=' + Date.now(), { cache: 'no-store', mode: 'cors' })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data && data.error) {
+              setStatus('Firebase: ' + data.error + ' — posodobi Rules (cyd/live .read).', 'err');
+              setTimeout(tick, 4000);
+              return;
+            }
+            var url = pickUrl(data);
+            if (!url || url.indexOf('http') !== 0) {
+              setStatus('Tunel ni objavljen. Zaženi tunnel.bat in pusti to stran odprto.', 'err');
+              setTimeout(tick, 2500);
+              return;
+            }
+            target = url.replace(/\/$/, '');
+            urlEl.textContent = target;
+            go.disabled = false;
+            setStatus('Najden. Preusmerjam …', 'ok');
+            openNow();
+          })
+          .catch(function (e) {
+            setStatus('Ne morem brati Firebase. Preveri mrežo / Rules.', 'err');
+            setTimeout(tick, 4000);
+          });
+      }
+
+      tick();
     })();
   </script>
 </body>
