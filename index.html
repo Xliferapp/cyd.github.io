@@ -41,6 +41,41 @@
       var endpoint = db + '/' + path + '.json';
       var target = '';
       var opened = false;
+      var lastSeen = '';
+      var cover = isCoverScreen();
+
+      function isCoverScreen() {
+        try {
+          var q = {};
+          try {
+            location.search.slice(1).split('&').forEach(function (p) {
+              var a = p.split('=');
+              q[decodeURIComponent(a[0] || '')] = decodeURIComponent((a[1] || '').replace(/\+/g, ' '));
+            });
+          } catch (_) {}
+          if (q.full === '1' || q.cover === '0') return false;
+          if (q.cover === '1' || q.cover === 'yes' || location.hash === '#cover') return true;
+          var w = window.innerWidth || 0;
+          var h = window.innerHeight || 0;
+          if (window.visualViewport) {
+            if (visualViewport.width) w = visualViewport.width;
+            if (visualViewport.height) h = visualViewport.height;
+          }
+          var sw = screen && screen.width ? screen.width : w;
+          var sh = screen && screen.height ? screen.height : h;
+          var min = Math.min(w, h);
+          var max = Math.max(w, h);
+          var aspect = min / Math.max(max, 1);
+          var square = aspect >= 0.78;
+          var smallCss = max <= 580 && min >= 220 && min <= 520;
+          var smallScreen = Math.max(sw, sh) <= 1200 && Math.min(sw, sh) <= 520;
+          var ua = (navigator.userAgent || '') + ' ' + (navigator.platform || '');
+          var flip = /SM-F7|SM-F8|SM-F73|SM-F74|SM-F76|SM-F72|Z Flip|Flip8|Flip7/i.test(ua);
+          return (square && (smallCss || smallScreen)) || (flip && square && max <= 720);
+        } catch (_) {
+          return false;
+        }
+      }
 
       function setStatus(t, cls) {
         status.className = cls || '';
@@ -55,11 +90,27 @@
         return typeof u === 'string' ? u : '';
       }
 
+      function withPath(base) {
+        if (!base) return '';
+        var raw = String(base).trim();
+        var hash = '';
+        var qi = raw.indexOf('#');
+        if (qi >= 0) { hash = raw.slice(qi); raw = raw.slice(0, qi); }
+        raw = raw.replace(/\/+$/, '');
+        raw = raw.replace(/\/(index|cover)\.html$/i, '');
+        if (cover) return raw + '/cover.html' + hash;
+        return raw + '/' + hash;
+      }
+
       function openNow() {
-        if (!target || opened) return;
-        opened = true;
-        setStatus('Odpiram …', 'ok');
+        if (!target) return;
+        setStatus(cover ? 'Cover zaslon — odpiram /cover.html …' : 'Odpiram …', 'ok');
         window.location.href = target;
+      }
+
+      if (cover) {
+        document.querySelector('.sub').textContent = 'GitHub vrata → tunel /cover.html (FlexWindow)';
+        go.textContent = 'Odpri COVER';
       }
 
       go.onclick = function () { if (target) window.location.href = target; };
@@ -79,11 +130,21 @@
               setTimeout(tick, 2500);
               return;
             }
-            target = url.replace(/\/$/, '');
+            target = withPath(url);
             urlEl.textContent = target;
             go.disabled = false;
-            setStatus('Najden. Preusmerjam …', 'ok');
-            openNow();
+            if (target !== lastSeen) {
+              lastSeen = target;
+              opened = false;
+              setStatus('Najden. Preusmerjam …', 'ok');
+              if (!opened) {
+                opened = true;
+                openNow();
+              }
+            } else {
+              setStatus('Naslov je isti. Če se ni odprl, klikni gumb.', 'ok');
+            }
+            setTimeout(tick, 8000);
           })
           .catch(function (e) {
             setStatus('Ne morem brati Firebase. Preveri mrežo / Rules.', 'err');
